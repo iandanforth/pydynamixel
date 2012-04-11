@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name = "dynamixel",
-      version = '1.0',
+      version = '1.0.1',
       description = "Dynamixel Servo Library",
       packages = [ 'dynamixel' ],
       platforms = 'Posix; MacOS X; Windows',

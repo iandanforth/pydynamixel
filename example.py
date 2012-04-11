@@ -21,11 +21,11 @@ if os.name == "posix":
     print ('You will need to edit this example and set a value for "portName".\n'
           'Here are a few possible ports you might want to try if you do not\n'
           'know exactly where your USB2Dynamixel is attached:')
-  # Get a list of ports that mention USB
-  possiblePorts = subprocess.check_output('ls /dev/*usb*', shell=True).split()
-  for port in possiblePorts:
-    print '\t' + port
-  sys.exit(1)
+    # Get a list of ports that mention USB
+    possiblePorts = subprocess.check_output('ls /dev/*usb*', shell=True).split()
+    for port in possiblePorts:
+      print '\t' + port
+    sys.exit(1)
 else:
     portName = "COM11"
 
