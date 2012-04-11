@@ -1,13 +1,13 @@
 #!/usr/bin/python
 
-__version__ = '1.0.1'
+from dynamixel import __version__
 
 sdict = {
     'name' : 'dynamixel',
     'version' : __version__,
     'description' : "Dynamixel Servo Library",
     'url': 'http://github.com/iandanforth/pydynamixel',
-    'download_url' : 'https://github.com/iandanforth/pydynamixel/downloads',
+    'download_url' : 'http://cloud.github.com/downloads/iandanforth/pydynamixel/dynamixel-%s.tar.gz' % __version__,
     'author' : 'Patrick Goebel',
     'author_email' : 'patrick@pirobot.org',
     'maintainer' : 'Ian Danforth',
