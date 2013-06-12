@@ -255,11 +255,11 @@ class Dynamixel (object):
 
     def _get_ccw_angle_limit( self ):
         """getter"""        
-        return self._get_register_value( AX12.CWAngleLimit )
+        return self._get_register_value( AX12.CCWAngleLimit )
     
     def _set_ccw_angle_limit( self, value ):
         """ setter """                
-        self.set_register_value( AX12.CWAngleLimit, value )
+        self.set_register_value( AX12.CCWAngleLimit, value )
 
     ccw_angle_limit = property( _get_ccw_angle_limit, _set_ccw_angle_limit )
     
