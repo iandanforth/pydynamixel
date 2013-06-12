@@ -27,6 +27,10 @@ import event_handler
 import stream
 import defs
 
+from defs import DEVICE
+
+AX12 = DEVICE['AX12']
+
 class MockStream( stream.Stream ):
     """ Mock Stream implementation """
     
@@ -280,9 +284,9 @@ class DynamixelInterfaceTest(unittest.TestCase):
         istream.append( make_packet( 1, 0, [0x20]))
         # dummy packet full range of eeprom
         istream.append( make_packet( 1, 0, range(0,50) ))
-        result = iface.read_registers( 1, defs.REGISTER.ModelNumber, defs.REGISTER.Punch)
+        result = iface.read_registers( 1, AX12.ModelNumber, AX12.Punch)
         # assert only the number of registers are returned
-        self.assertEqual( len( result ), len(defs.REGISTER.values()) )
+        self.assertEqual( len( result ), len(AX12.values()) )
         # TODO possibly add test for values of registers in future
     
     def test_write_data( self ):

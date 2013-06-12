@@ -26,6 +26,10 @@ import event_handler
 import time
 import dynamixel
 
+from defs import DEVICE
+
+AX12 = DEVICE['AX12']
+
 class DynamixelInterface(object):
     """ Interface to Dynamixel CM-5 """
     BROADCAST_ID = 254
@@ -59,13 +63,13 @@ class DynamixelInterface(object):
     @staticmethod
     def register_length(reg):
         """ Returns the register length"""
-        if reg in [defs.REGISTER.ModelNumber, 
-                   defs.REGISTER.CWAngleLimit, defs.REGISTER.CCWAngleLimit,
-                   defs.REGISTER.MaxTorque, defs.REGISTER.DownCalibration,
-                   defs.REGISTER.UpCalibration, defs.REGISTER.GoalPosition,
-                   defs.REGISTER.MovingSpeed, defs.REGISTER.TorqueLimit,
-                   defs.REGISTER.CurrentPosition, defs.REGISTER.CurrentSpeed,
-                   defs.REGISTER.CurrentLoad, defs.REGISTER.Punch]:
+        if reg in [AX12.ModelNumber, 
+                   AX12.CWAngleLimit, AX12.CCWAngleLimit,
+                   AX12.MaxTorque, AX12.DownCalibration,
+                   AX12.UpCalibration, AX12.GoalPosition,
+                   AX12.MovingSpeed, AX12.TorqueLimit,
+                   AX12.CurrentPosition, AX12.CurrentSpeed,
+                   AX12.CurrentLoad, AX12.Punch]:
             return 2
         else:
             return 1
@@ -396,7 +400,7 @@ class DynamixelInterface(object):
         # resulting values
         result = []
 
-        regs = defs.REGISTER.values()
+        regs = AX12.values()
         regs.sort()
         # index of first and last register
         first = regs.index( first_register )
@@ -617,7 +621,7 @@ class DynamixelNetwork (DynamixelInterface):
                     data.append(servo.moving_speed >> 8)
                     servo.changed = False
         if count != 0:
-            self.sync_write(defs.REGISTER.GoalPosition, count, data)
+            self.sync_write(AX12.GoalPosition, count, data)
 
 
     def broadcast_register(self, reg, value):
