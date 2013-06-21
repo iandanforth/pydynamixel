@@ -19,9 +19,9 @@ Dynamixel AX-12+ Module
 """
 __version__ =  '1.0.3'
 
-from dynamixel import Dynamixel
+from dynamixel import Dynamixel, SensorModule
 from dynamixel_network import DynamixelNetwork
 from echo_stream import EchoStream
 from serial_stream import SerialStream
-from defs import ERROR_STATUS, BAUD_RATE, REGISTER, INSTRUCTION, \
+from defs import ERROR_STATUS, BAUD_RATE, DEVICE, INSTRUCTION, \
                  STATUS_RETURN_LEVEL

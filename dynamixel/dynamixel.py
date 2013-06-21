@@ -24,10 +24,98 @@ Dynamixel interface
 import defs
 import time
 import dynamixel_network
+import re
 
 from defs import DEVICE
 
 AX12 = DEVICE['AX12']
+AXS1 = DEVICE['AXS1']
+AXS1PropNames = {}
+
+class SensorModule(object):
+    """ Dynamixel AX-S1 class """
+    def __init__( self, ident, dyn_net):
+        """ Constructor
+        ident - the id for this dynamixel
+        dyn_net - the parent dynamixel network
+        """
+        self._id = ident
+        self._dyn_net = dyn_net
+        self.cache = {}
+        self.changed = False
+        self._synchronized = True
+        
+        self.registers = AXS1
+        
+        # Add properties to this class for each register
+        for register in self.registers:
+            # Split the Register Name
+            words = [a.lower() for a in re.split(r'([A-Z][a-z]*)', register) if a]
+            prop = "_".join(words)
+            AXS1PropNames[prop] = register
+            self.__dict__[prop] = property()
+            
+    def __getattribute__(self, name):
+        
+        # Abuse global scope a bit to save a ton of work
+        if name in AXS1PropNames.keys():
+            regName = AXS1PropNames[name]
+            return self._get_register_value( AXS1[regName] )
+        else:
+            return super(SensorModule, self).__getattribute__(name)
+
+    def _no_cache( self, register ):
+        """ deteremine if a register value should be cached
+
+        register - register
+        
+        returns True if should not be cached
+        """
+        return register in [AXS1.CurrentTemperature, 
+                            AXS1.CurrentVoltage]
+
+    def __getitem__( self, register ):
+        """ Get a cache value
+        
+        register - register to retrieve
+
+        returns value or -1 if not in cache
+        """
+        data = -1
+        if register in self.cache:
+            data = self.cache[ register ]
+        return data
+
+    def __setitem__( self, register, value ):
+        """ Set a cache value
+        
+        register - register to retrieve
+        """
+
+        self.cache[ register ] = value
+        
+    def _get_register_value( self, register ):
+        """ Get a register value from the cache, if present,
+        or by reading the value from the Dynamixel
+
+        reg - register to read
+        
+        return  the register value"""
+        if self._no_cache( register ):
+            return self._dyn_net.read_register( self._id, register )
+        else:
+            value = self[ register ]
+            if value == -1:
+                return self._dyn_net.read_register( self._id, register )
+            else:
+                return value
+            
+    def _get_current_voltage( self ):
+        """getter"""        
+        volts = self._dyn_net.read_register( self._id, 
+                                              AXS1.CurrentVoltage) 
+        return volts / 10.0
+
 
 class Dynamixel (object):
     """ Dynamixel AX-12+ class """
@@ -128,7 +216,6 @@ class Dynamixel (object):
             return
         self._dyn_net.write_register( self._id, register, value, False )
         self[ register ] = value
-
 
     def read_all( self ):
         """ Read all register values into the cache """
@@ -510,5 +597,7 @@ class Dynamixel (object):
         """setter"""
         self.set_register_value(AX12.TorqueLimit, value)
 
-    torque_limit = property( _get_torque_limit, _set_torque_limit )    
+    torque_limit = property( _get_torque_limit, _set_torque_limit )
+    
+
     
