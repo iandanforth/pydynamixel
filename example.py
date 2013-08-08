@@ -48,6 +48,8 @@ def main(settings):
         actuator.torque_limit = 800
         actuator.max_torque = 800
     
+    # Randomly vary servo position within a small range
+    print "Servo", "Position"
     while True:
         for actuator in myActuators:
             actuator.goal_position = random.randrange(450, 600)
