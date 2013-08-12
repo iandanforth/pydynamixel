@@ -1,3 +1,5 @@
+* 1.0.3
+    * Fixes a bug in example.py on linux
 * 1.0.2
     * Updates example script to be more user friendly
 * 1.0.1
