@@ -22,15 +22,15 @@ def main(settings):
 
     # Establish a serial connection to the dynamixel network.
     # This usually requires a USB2Dynamixel
-    serial = dynamixel.SerialStream( port=portName, baudrate=baudRate, timeout=1)
-    net = dynamixel.DynamixelNetwork( serial )
+    serial = dynamixel.SerialStream(port=portName, baudrate=baudRate, timeout=1)
+    net = dynamixel.DynamixelNetwork(serial)
     
     # Ping the range of servos that are attached
-    net.scan( 1, highestServoId )
-    
-    myActuators = list()
-    
     print "Scanning for Dynamixels..."
+    net.scan(1, highestServoId)
+    
+    myActuators = []
+    
     for dyn in net.get_dynamixels():
         print dyn.id
         myActuators.append(net[dyn.id])
@@ -49,7 +49,7 @@ def main(settings):
         actuator.max_torque = 800
     
     # Randomly vary servo position within a small range
-    print "Servo", "Position"
+    print "Servo \tPosition"
     while True:
         for actuator in myActuators:
             actuator.goal_position = random.randrange(450, 600)
@@ -58,7 +58,7 @@ def main(settings):
             actuator.read_all()
             time.sleep(0.01)
         for actuator in myActuators:
-            print actuator._id, actuator.current_position
+            print actuator._id, "\t", actuator.current_position
         time.sleep(2)
 
 def validateInput(userInput, rangeMin, rangeMax):
@@ -98,8 +98,9 @@ if __name__ == '__main__':
             portPrompt = "Which port corresponds to your USB2Dynamixel? \n"
             # Get a list of ports that mention USB
             try:
-                possiblePorts = subprocess.check_output('ls /dev/*usb*',
+                possiblePorts = subprocess.check_output('ls /dev/ | grep -i usb',
                                                         shell=True).split()
+                possiblePorts = ['/dev/' + port for port in possiblePorts]
             except subprocess.CalledProcessError:
                 sys.exit("USB2Dynamixel not found. Please connect one.")
                 
