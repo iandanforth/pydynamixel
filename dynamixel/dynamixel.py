@@ -50,6 +50,7 @@ class SensorModule(object):
         self.registers = AXS1
         
         # Add properties to this class for each register
+        # This allows introspection by dir()
         for register in self.registers:
             # Split the Register Name
             words = [a.lower() for a in re.split(r'([A-Z][a-z]*)', register) if a]
@@ -176,8 +177,7 @@ class SensorModule(object):
         
     def _get_current_voltage(self):
         """getter"""        
-        volts = self._dyn_net.read_register(self._id, 
-                                              AXS1.CurrentVoltage) 
+        volts = self._dyn_net.read_register(self._id, AXS1.CurrentVoltage) 
         return volts / 10.0
 
 
@@ -293,12 +293,12 @@ class Dynamixel (object):
     def register_length(self, register):
         """ Returns the register length"""
         if register in [AX12.ModelNumber, 
-                   AX12.CWAngleLimit, AX12.CCWAngleLimit,
-                   AX12.MaxTorque, AX12.DownCalibration,
-                   AX12.UpCalibration, AX12.GoalPosition,
-                   AX12.MovingSpeed, AX12.TorqueLimit,
-                   AX12.CurrentPosition, AX12.CurrentSpeed,
-                   AX12.CurrentLoad, AX12.Punch]:
+                        AX12.CWAngleLimit, AX12.CCWAngleLimit,
+                        AX12.MaxTorque, AX12.DownCalibration,
+                        AX12.UpCalibration, AX12.GoalPosition,
+                        AX12.MovingSpeed, AX12.TorqueLimit,
+                        AX12.CurrentPosition, AX12.CurrentSpeed,
+                        AX12.CurrentLoad, AX12.Punch]:
             return 2
         else:
             return 1

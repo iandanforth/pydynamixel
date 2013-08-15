@@ -36,7 +36,7 @@ class DynamixelInterface(object):
     BROADCAST_ID = 254
     def __init__(self, strm):
         """ Constructor
-        stream - an open Stream
+        strm - an open Stream
         """
         self._stream = strm
         self.dynamixel_error = event_handler.EventHandler()
@@ -270,7 +270,6 @@ class DynamixelInterface(object):
         ident - the id of the destination dynamixel or BROADCAST_ID to send to all
         ins - instruction to send
         param - parameters to send (list of bytes) or None
-        
         """
         cmd = []
         #
