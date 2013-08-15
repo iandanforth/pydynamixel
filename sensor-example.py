@@ -10,8 +10,9 @@ import yaml
 """
 EXAMPLE
  
-Move all attached servos randomly every 2 seconds and read back the position
-they end up in.
+The sensor module can play sounds, measure distance through IR, count claps,
+and a few other things. Below you'll see how to take advantage of these
+abilities.
 """
 
 def main(settings):
@@ -24,23 +25,46 @@ def main(settings):
     serial = dynamixel.SerialStream(port=portName, baudrate=baudRate, timeout=1)
     net = dynamixel.DynamixelNetwork(serial)
         
-    # Sensor is assumed to be at id 100
+    # Create our sensor object. Sensor is assumed to be at id 100
     sensor = dynamixel.SensorModule(100, net)
     
-    sensor.buzzer_time = 0
+    ######################
+    # Playing sounds
     
-    # Pause to see if the value is kept
-    print "Set buzzer time value:", sensor.buzzer_time
+    # How long we want the note to play (.3s to 5s in tenths of seconds)
+    # Notes:
+    #   This resets after the note is played
+    #   Use 254 as the value for continual play and then 0 to turn it off.
+    sensor.buzzer_time = 10
+    
+    # Play a note (0-41)
+    print 'Playing a note ...'
     sensor.buzzer_index = 19
 
-    time.sleep(1)
+    time.sleep(2)
 
-    print "Re-Set buzzer time value:", sensor.buzzer_time
-    print "Set buzzer index value:", sensor.buzzer_index
+    print "Playing a tune ..."
+    sensor.buzzer_time = 255
+    sensor.buzzer_index = 1
+
+    time.sleep(2)
     
-    # Read values sensed from environment
+    #######################
+    # Reading values from environment
+    print 'Reading values from the world ...'
+    
+    # The sensor can hear itself play notes, so reset the counter
+    sensor.sound_detected_count = 0
+    
     print "Left IR \tCenter IR\tRight IR\tTemperature\tVoltage"
+
+    counter = 0
     while True:
+        counter += 1
+        if counter % 10 == 0:
+            print "CLAP TWICE TO EXIT"
+        if sensor.sound_detected_count >= 2:
+            sys.exit(0)
         # Get our sensor values and time elapsed
         lir = sensor.left_ir_sensor_value
         cir = sensor.center_ir_sensor_value
@@ -48,7 +72,7 @@ def main(settings):
         temp = sensor.current_temperature
         volts = sensor.current_voltage
         print lir, '\t\t', cir, '\t\t', rir, '\t\t', temp, '\t\t', volts
-        time.sleep(1)
+        time.sleep(.5)
         
 def validateInput(userInput, rangeMin, rangeMax):
     '''
