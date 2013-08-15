@@ -163,16 +163,26 @@ class SensorModule(object):
                         AXS1.CurrentTemperature]:
             raise ValueError("Cannot set register")
         
-        # Note: This could introduce bugs depending on if the reg is cached
+        register_length = self.register_length(register)
+        
+        # Write to module but not cache
+        if self._no_cache(register):
+            self._dyn_net.write_register(self._id,
+                                         register,
+                                         register_length,
+                                         value,
+                                         False)
+            return
+        
+        # Previously cached, same value. No-op
         if self[register] == value:
             return
         
-        register_length = self.register_length(register)
+        # Can be cached, new value, write to both module and cache
         self._dyn_net.write_register(self._id,
                                      register,
                                      register_length,
-                                     value,
-                                     False)
+                                     value, False)
         self[register] = value
         
     def _get_current_voltage(self):
