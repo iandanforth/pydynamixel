@@ -26,6 +26,8 @@ import time
 import dynamixel_network
 import re
 
+from collections import namedtuple
+
 from defs import DEVICE
 
 AX12 = DEVICE['AX12']
@@ -34,7 +36,7 @@ AXS1PropNames = {}
 
 class SensorModule(object):
     """ Dynamixel AX-S1 class """
-    def __init__( self, ident, dyn_net):
+    def __init__(self, ident, dyn_net):
         """ Constructor
         ident - the id for this dynamixel
         dyn_net - the parent dynamixel network
@@ -60,11 +62,20 @@ class SensorModule(object):
         # Abuse global scope a bit to save a ton of work
         if name in AXS1PropNames.keys():
             regName = AXS1PropNames[name]
-            return self._get_register_value( AXS1[regName] )
+            return self._get_register_value(AXS1[regName])
         else:
             return super(SensorModule, self).__getattribute__(name)
+    
+    def __setattr__(self, name, value):
+        
+        # Abuse global scope a bit to save a ton of work
+        if name in AXS1PropNames.keys():
+            regName = AXS1PropNames[name]
+            self.set_register_value(AXS1[regName], value)
+        else:
+            return super(SensorModule, self).__setattr__(name, value)
 
-    def _no_cache( self, register ):
+    def _no_cache(self, register):
         """ deteremine if a register value should be cached
 
         register - register
@@ -72,9 +83,24 @@ class SensorModule(object):
         returns True if should not be cached
         """
         return register in [AXS1.CurrentTemperature, 
-                            AXS1.CurrentVoltage]
+                            AXS1.CurrentVoltage,
+                            AXS1.BuzzerTime,
+                            AXS1.LeftIrSensorValue,
+                            AXS1.CenterIrSensorValue,
+                            AXS1.RightIrSensorValue,
+                            AXS1.LeftLumin,
+                            AXS1.CenterLumin,
+                            AXS1.RightLumin,
+                            AXS1.ObstacleDetectedFlag,
+                            AXS1.LuminDetectedFlag,
+                            AXS1.SoundValue,
+                            AXS1.SoundValueMax,
+                            AXS1.SoundDetectedCount,
+                            AXS1.SoundDetectedTime,
+                            AXS1.IrRemoconRxData0,
+                            AXS1.IrRemoconRxData1]
 
-    def __getitem__( self, register ):
+    def __getitem__(self, register):
         """ Get a cache value
         
         register - register to retrieve
@@ -83,43 +109,81 @@ class SensorModule(object):
         """
         data = -1
         if register in self.cache:
-            data = self.cache[ register ]
+            data = self.cache[register]
         return data
 
-    def __setitem__( self, register, value ):
+    def __setitem__(self, register, value):
         """ Set a cache value
         
         register - register to retrieve
         """
 
-        self.cache[ register ] = value
+        self.cache[register] = value
         
-    def _get_register_value( self, register ):
+    def _get_register_value(self, register):
         """ Get a register value from the cache, if present,
         or by reading the value from the Dynamixel
 
         reg - register to read
         
         return  the register value"""
-        if self._no_cache( register ):
-            return self._dyn_net.read_register( self._id, register )
+        register_length = self.register_length(register)
+        if self._no_cache(register):
+            return self._dyn_net.read_register(self._id,
+                                               register,
+                                               register_length)
         else:
-            value = self[ register ]
+            value = self[register]
             if value == -1:
-                return self._dyn_net.read_register( self._id, register )
+                return self._dyn_net.read_register(self._id,
+                                                   register,
+                                                   register_length)
             else:
                 return value
-            
-    def _get_current_voltage( self ):
+    
+    def register_length(self, register):
+        """
+        Returns if the logical register is 1 or 2 bytes in length
+        """
+        if register in [AXS1.ModelNumber, AXS1.SoundDetectedTime]:
+            return 2
+        else:
+            return 1
+    
+    def set_register_value(self, register, value):
+        """Set a register value and record in the cache, if applicable.
+        
+        register - register
+        value - byte or word value
+        """
+        if register in [AXS1.ModelNumber, 
+                        AXS1.FirmwareVersion,
+                        AXS1.CurrentVoltage,
+                        AXS1.CurrentTemperature]:
+            raise ValueError("Cannot set register")
+        
+        # Note: This could introduce bugs depending on if the reg is cached
+        if self[register] == value:
+            return
+        
+        register_length = self.register_length(register)
+        self._dyn_net.write_register(self._id,
+                                     register,
+                                     register_length,
+                                     value,
+                                     False)
+        self[register] = value
+        
+    def _get_current_voltage(self):
         """getter"""        
-        volts = self._dyn_net.read_register( self._id, 
+        volts = self._dyn_net.read_register(self._id, 
                                               AXS1.CurrentVoltage) 
         return volts / 10.0
 
 
 class Dynamixel (object):
     """ Dynamixel AX-12+ class """
-    def __init__( self, ident, dyn_net ):
+    def __init__(self, ident, dyn_net):
         """ Constructor
         ident - the id for this dynamixel
         dyn_net - the parent dynamixel network
@@ -129,12 +193,31 @@ class Dynamixel (object):
         self.cache = {}
         self.changed = False
         self._synchronized = True
-        data = self._dyn_net.read_registers( ident, AX12.GoalPosition, 
-                                          AX12.MovingSpeed )
-        self[ AX12.GoalPosition ] = data[0] 
-        self[ AX12.MovingSpeed ] = data[1] 
 
-    def _no_cache( self, register ):
+    def __getitem__(self, register):
+        """ Get a cache value
+        
+        register - register to retrieve
+
+        returns value or -1 if not in cache
+        """
+        data = -1
+        if register in self.cache:
+            data = self.cache[register]
+        return data
+
+    def __setitem__(self, register, value):
+        """ Set a cache value
+        
+        register - register to retrieve
+        """
+
+        self.cache[register] = value
+
+    def __str__(self):
+        return "Dyn %d" % (self._id)
+
+    def _no_cache(self, register):
         """ deteremine if a register value should be cached
 
         register - register
@@ -147,29 +230,9 @@ class Dynamixel (object):
                             AX12.CurrentTemperature, 
                             AX12.CurrentVoltage, 
                             AX12.Moving,
-                            AX12.TorqueEnable ]
+                            AX12.TorqueEnable]
 
-    def __getitem__( self, register ):
-        """ Get a cache value
-        
-        register - register to retrieve
-
-        returns value or -1 if not in cache
-        """
-        data = -1
-        if register in self.cache:
-            data = self.cache[ register ]
-        return data
-
-    def __setitem__( self, register, value ):
-        """ Set a cache value
-        
-        register - register to retrieve
-        """
-
-        self.cache[ register ] = value
-
-    def _get_register_value( self, register ):
+    def _get_register_value(self, register):
         """ Get a register value from the cache, if present,
         or by reading the value from the Dynamixel
 
@@ -177,17 +240,17 @@ class Dynamixel (object):
         
         return  the register value"""
         if register in [AX12.GoalPosition, AX12.MovingSpeed]:
-            return self[ register ]
-        if self._no_cache( register ):
-            return self._dyn_net.read_register( self._id, register )
+            return self[register]
+        if self._no_cache(register):
+            return self._dyn_net.read_register(self._id, register)
         else:
-            value = self[ register ]
+            value = self[register]
             if value == -1:
-                return self._dyn_net.read_register( self._id, register )
+                return self._dyn_net.read_register(self._id, register)
             else:
                 return value
 
-    def set_register_value( self, register, value ):
+    def set_register_value(self, register, value):
         """Set a register value and record in the cache, if applicable.
         
         register - register
@@ -198,7 +261,7 @@ class Dynamixel (object):
                 if register == AX12.MovingSpeed and value == 0:
                     value = 1
                     print "Moving speed %d " % (value)
-                self[ register ] = value
+                self[register] = value
                 self.changed = True
             elif register in [AX12.ModelNumber, 
                               AX12.FirmwareVersion, 
@@ -208,26 +271,54 @@ class Dynamixel (object):
                               AX12.CurrentVoltage,
                               AX12.CurrentTemperature, 
                               AX12.Moving]:
-                raise ValueError( "Cannot set register" )
-        if self._no_cache( register ):
-            self._dyn_net.write_register( self._id, register, value, False )
+                raise ValueError("Cannot set register")
+            
+        register_length = self.register_length(register)
+        if self._no_cache(register):
+            self._dyn_net.write_register(self._id,
+                                         register,
+                                         register_length,
+                                         value,
+                                         False)
             return
-        if self[ register ] == value:
+        if self[register] == value:
             return
-        self._dyn_net.write_register( self._id, register, value, False )
-        self[ register ] = value
+        
+        self._dyn_net.write_register(self._id,
+                                     register,
+                                     register_length,
+                                     value, False)
+        self[register] = value
 
-    def read_all( self ):
+    def register_length(self, register):
+        """ Returns the register length"""
+        if register in [AX12.ModelNumber, 
+                   AX12.CWAngleLimit, AX12.CCWAngleLimit,
+                   AX12.MaxTorque, AX12.DownCalibration,
+                   AX12.UpCalibration, AX12.GoalPosition,
+                   AX12.MovingSpeed, AX12.TorqueLimit,
+                   AX12.CurrentPosition, AX12.CurrentSpeed,
+                   AX12.CurrentLoad, AX12.Punch]:
+            return 2
+        else:
+            return 1
+
+    def read_all(self):
         """ Read all register values into the cache """
-        regs = AX12.values()
-        regs.sort()
-        values = self._dyn_net.read_registers( self._id, 
-                                               AX12.ModelNumber, 
-                                               AX12.Punch )
-        for i, reg in enumerate( regs ):
-            self[ reg ] = values[i]
+        Register = namedtuple('Register', ['name', 'address', 'length'])
+        
+        # Add in register lengths
+        regs = [Register(name, AX12[name], self.register_length(AX12[name])) for
+                name in AX12]
+        
+        regs = sorted(regs, key=lambda reg: reg.address)
+        
+        values = self._dyn_net.read_registers(self._id, regs)
+        
+        for i, reg in enumerate(regs):
+            self[reg] = values[i]
 
-    def reset( self, ident):
+    def reset(self, ident):
         
         """Resets a dynamixel
         
@@ -238,21 +329,18 @@ class Dynamixel (object):
         It resets the unit ID to 1, so careful planning is required to to
         avoid collisions on a network with more than one Dynamixel.
         """
-        self._dyn_net.write_instruction( ident, defs.INSTRUCTION.Reset, None )
-        self._dyn_net.await_packet( ident, 0 )
+        self._dyn_net.write_instruction(ident, defs.INSTRUCTION.Reset, None)
+        self._dyn_net.await_packet(ident, 0)
                 
-    def reset_registers(self ):
+    def reset_registers(self):
         """Reset register values to factory default"""       
-        self._dyn_net.dynamixel_id_change( self, 1 )
-        self.reset( self._id )
+        self._dyn_net.dynamixel_id_change(self, 1)
+        self.reset(self._id)
         self._id = 1
         time.sleep(0.3)
         self.read_all()
-    
-    def __str__( self ):
-        return "Dyn %d" % ( self._id )
 
-    def stop( self ):
+    def stop(self):
         """ 
         Stop the Dynamixel from moving.
 
@@ -270,334 +358,335 @@ class Dynamixel (object):
         self.goal_position = self.current_position
         self.moving_speed = 1
 
-    def _get_synchronized( self ):
+    ###########################################################################
+    # Properties
+    
+    def _get_synchronized(self):
         """getter"""
         return self._synchronized
     
-    def _set_synchronized( self, value ):
+    def _set_synchronized(self, value):
         """ setter """   
         self._synchronized = value                  
         
-    synchronized = property( _get_synchronized, _set_synchronized )
+    synchronized = property(_get_synchronized, _set_synchronized)
        
-    def _get_goal_position( self ):
+    def _get_goal_position(self):
         """getter"""
-        return self._get_register_value( AX12.GoalPosition )
+        return self._get_register_value(AX12.GoalPosition)
     
-    def _set_goal_position( self, value ):
+    def _set_goal_position(self, value):
         """ setter """                
-        self.set_register_value( AX12.GoalPosition, value )     
+        self.set_register_value(AX12.GoalPosition, value)     
         
-    goal_position = property( _get_goal_position, _set_goal_position )
+    goal_position = property(_get_goal_position, _set_goal_position)
 
-    def _get_moving_speed( self ):
+    def _get_moving_speed(self):
         """getter"""        
-        return self._get_register_value( AX12.MovingSpeed )
+        return self._get_register_value(AX12.MovingSpeed)
     
-    def _set_moving_speed( self, value ):
+    def _set_moving_speed(self, value):
         """ setter """                
-        self.set_register_value( AX12.MovingSpeed, value )
+        self.set_register_value(AX12.MovingSpeed, value)
     
-    moving_speed = property( _get_moving_speed, _set_moving_speed )
+    moving_speed = property(_get_moving_speed, _set_moving_speed)
 
-    def _get_alarm_led( self ):
+    def _get_alarm_led(self):
         """getter"""        
-        return self._get_register_value( AX12.AlarmLED )
+        return self._get_register_value(AX12.AlarmLED)
     
-    def _set_alarm_led( self, value ):
+    def _set_alarm_led(self, value):
         """ setter """                
-        self.set_register_value( AX12.AlarmLED, value )
+        self.set_register_value(AX12.AlarmLED, value)
 
-    alarm_led = property( _get_alarm_led, _set_alarm_led )
+    alarm_led = property(_get_alarm_led, _set_alarm_led)
 
-    def _get_alarm_shutdown( self ):
+    def _get_alarm_shutdown(self):
         """getter"""        
-        return self._get_register_value( AX12.AlarmShutdown )
+        return self._get_register_value(AX12.AlarmShutdown)
     
-    def _set_alarm_shutdown( self, value ):
+    def _set_alarm_shutdown(self, value):
         """ setter """                
-        self.set_register_value( AX12.AlarmShutdown, value )
+        self.set_register_value(AX12.AlarmShutdown, value)
 
-    alarm_shutdown = property( _get_alarm_shutdown, _set_alarm_shutdown )
+    alarm_shutdown = property(_get_alarm_shutdown, _set_alarm_shutdown)
 
-    def _get_baud_rate( self ):
+    def _get_baud_rate(self):
         """getter"""        
-        return self._get_register_value( AX12.BaudRate )
+        return self._get_register_value(AX12.BaudRate)
     
-    def _set_baud_rate( self, value ):
+    def _set_baud_rate(self, value):
         """ setter """                
-        self.set_register_value( AX12.BaudRate, value )
+        self.set_register_value(AX12.BaudRate, value)
 
-    baud_rate = property( _get_baud_rate, _set_baud_rate )
+    baud_rate = property(_get_baud_rate, _set_baud_rate)
 
-    def _get_cw_angle_limit( self ):
+    def _get_cw_angle_limit(self):
         """getter"""        
-        return self._get_register_value( AX12.CWAngleLimit )
+        return self._get_register_value(AX12.CWAngleLimit)
     
-    def _set_cw_angle_limit( self, value ):
+    def _set_cw_angle_limit(self, value):
         """ setter """                
-        self.set_register_value( AX12.CWAngleLimit, value )
+        self.set_register_value(AX12.CWAngleLimit, value)
 
-    cw_angle_limit = property( _get_cw_angle_limit, _set_cw_angle_limit )
+    cw_angle_limit = property(_get_cw_angle_limit, _set_cw_angle_limit)
 
-    def _get_ccw_angle_limit( self ):
+    def _get_ccw_angle_limit(self):
         """getter"""        
-        return self._get_register_value( AX12.CCWAngleLimit )
+        return self._get_register_value(AX12.CCWAngleLimit)
     
-    def _set_ccw_angle_limit( self, value ):
+    def _set_ccw_angle_limit(self, value):
         """ setter """                
-        self.set_register_value( AX12.CCWAngleLimit, value )
+        self.set_register_value(AX12.CCWAngleLimit, value)
 
-    ccw_angle_limit = property( _get_ccw_angle_limit, _set_ccw_angle_limit )
+    ccw_angle_limit = property(_get_ccw_angle_limit, _set_ccw_angle_limit)
     
-    def _get_ccw_compliance_margin( self ):
+    def _get_ccw_compliance_margin(self):
         """getter"""        
-        return self._get_register_value( AX12.CCWComplianceMargin )
+        return self._get_register_value(AX12.CCWComplianceMargin)
     
-    def _set_ccw_compliance_margin( self, value ):
+    def _set_ccw_compliance_margin(self, value):
         """ setter """             
-        self.set_register_value( AX12.CCWComplianceMargin, value )
+        self.set_register_value(AX12.CCWComplianceMargin, value)
 
-    ccw_compliance_margin = property( _get_ccw_compliance_margin, 
-                                      _set_ccw_compliance_margin )
+    ccw_compliance_margin = property(_get_ccw_compliance_margin, 
+                                      _set_ccw_compliance_margin)
 
-    def _get_cw_compliance_margin( self ):
+    def _get_cw_compliance_margin(self):
         """getter"""        
-        return self._get_register_value( AX12.CWComplianceMargin )
+        return self._get_register_value(AX12.CWComplianceMargin)
     
-    def _set_cw_compliance_margin( self, value ):
+    def _set_cw_compliance_margin(self, value):
         """ setter """ 
-        self.set_register_value( AX12.CWComplianceMargin, value )
+        self.set_register_value(AX12.CWComplianceMargin, value)
 
-    cw_compliance_margin = property( _get_cw_compliance_margin, 
-                                     _set_cw_compliance_margin )
+    cw_compliance_margin = property(_get_cw_compliance_margin, 
+                                     _set_cw_compliance_margin)
     
-    def _get_ccw_compliance_slope( self ):
+    def _get_ccw_compliance_slope(self):
         """getter"""        
-        return self._get_register_value( AX12.CCWComplianceSlope )
+        return self._get_register_value(AX12.CCWComplianceSlope)
     
-    def _set_ccw_compliance_slope( self, value ):
+    def _set_ccw_compliance_slope(self, value):
         """ setter """                
-        self.set_register_value( AX12.CCWComplianceSlope, value )
+        self.set_register_value(AX12.CCWComplianceSlope, value)
 
-    ccw_compliance_slope = property( _get_ccw_compliance_slope, 
-                                     _set_ccw_compliance_slope )
+    ccw_compliance_slope = property(_get_ccw_compliance_slope, 
+                                     _set_ccw_compliance_slope)
 
-    def _get_cw_compliance_slope( self ):
+    def _get_cw_compliance_slope(self):
         """getter"""        
         return self._get_register_value(AX12.CWComplianceSlope)
     
-    def _set_cw_compliance_slope( self, value ):
+    def _set_cw_compliance_slope(self, value):
         """ setter """        
         self.set_register_value(AX12.CWComplianceSlope, value)
 
-    cw_compliance_slope = property( _get_cw_compliance_slope, 
-                                    _set_cw_compliance_slope )
+    cw_compliance_slope = property(_get_cw_compliance_slope, 
+                                    _set_cw_compliance_slope)
 
-    def _get_current_load( self ):
+    def _get_current_load(self):
         """getter"""        
         current_load = AX12.CurrentLoad
-        val = self._dyn_net.read_register( self._id, current_load )
+        val = self._dyn_net.read_register(self._id, current_load)
         if (val & 0x400) != 0:
             return -(val & 0x3FF)
         return val
 
-    current_load = property( _get_current_load )
+    current_load = property(_get_current_load)
 
-    def _get_current_position( self ):
+    def _get_current_position(self):
         """getter"""        
         return self._get_register_value(AX12.CurrentPosition)
 
-    current_position = property( _get_current_position )
+    current_position = property(_get_current_position)
 
-    def _get_current_speed( self ):
+    def _get_current_speed(self):
         """getter"""
-        val =  self._dyn_net.read_register( self._id, 
-                                           AX12.CurrentSpeed )
+        val =  self._dyn_net.read_register(self._id, 
+                                           AX12.CurrentSpeed)
         if (val & 0x400) != 0:
             return -(val & 0x3FF)
         return val
 
-    current_speed = property( _get_current_speed )
+    current_speed = property(_get_current_speed)
 
-    def _get_current_temperature( self ):
+    def _get_current_temperature(self):
         """getter"""        
-        return self._dyn_net.read_register( self._id, 
-                                             AX12.CurrentTemperature )
+        return self._dyn_net.read_register(self._id, 
+                                             AX12.CurrentTemperature)
 
-    current_temperature = property( _get_current_temperature )
+    current_temperature = property(_get_current_temperature)
 
-    def _get_current_voltage( self ):
+    def _get_current_voltage(self):
         """getter"""        
-        volts = self._dyn_net.read_register( self._id, 
+        volts = self._dyn_net.read_register(self._id, 
                                               AX12.CurrentVoltage) 
         return volts / 10.0
 
-    current_voltage = property( _get_current_voltage )
+    current_voltage = property(_get_current_voltage)
 
-    def _get_torque_enable( self ):
+    def _get_torque_enable(self):
         """getter"""        
         return (self._get_register_value(AX12.TorqueEnable) != 0)
     
-    def _set_torque_enable( self, value ):
+    def _set_torque_enable(self, value):
         """ setter """        
-        self.set_register_value(AX12.TorqueEnable, 1 if value else 0 )
+        self.set_register_value(AX12.TorqueEnable, 1 if value else 0)
 
-    torque_enable = property( _get_torque_enable, _set_torque_enable )
+    torque_enable = property(_get_torque_enable, _set_torque_enable)
 
-    def _get_firmware_version( self ):
+    def _get_firmware_version(self):
         """getter"""        
         return self._get_register_value(AX12.FirmwareVersion)
 
-    firmware_version = property( _get_firmware_version )
+    firmware_version = property(_get_firmware_version)
 
-    def _get_id( self ):
+    def _get_id(self):
         """getter"""        
         return self._id
     
-    def _set_id( self, value ):
+    def _set_id(self, value):
         """change id of the dynamixel"""
         broadcast_id = dynamixel_network.DynamixelInterface.BROADCAST_ID
         if value < 0 or value >= broadcast_id:
-            raise ValueError( "Id must be in range 0 to 253")
+            raise ValueError("Id must be in range 0 to 253")
         if value == self._id:
             return
-        self._dyn_net.dynamixel_id_change( self, value )
-        self._dyn_net.write_register( self._id, AX12.Id, value, False )
+        self._dyn_net.dynamixel_id_change(self, value)
+        self._dyn_net.write_register(self._id, AX12.Id, value, False)
         self._id = value
 
-    id = property( _get_id, _set_id )
+    id = property(_get_id, _set_id)
 
-    def _get_led( self ):
+    def _get_led(self):
         """getter"""        
         return (self._get_register_value(AX12.LED) != 0)
     
-    def _set_led( self, value ):
+    def _set_led(self, value):
         """setter"""        
         self.set_register_value(AX12.LED, 1 if value else 0)
 
-    led = property( _get_led, _set_led )
+    led = property(_get_led, _set_led)
 
-    def _get_lock( self ):
+    def _get_lock(self):
         """getter"""        
         return (self._get_register_value(AX12.Lock) != 0)
 
-    lock = property( _get_lock )
+    lock = property(_get_lock)
 
-    def _get_temperature_limit( self ):
+    def _get_temperature_limit(self):
         """getter"""        
-        return self._get_register_value( AX12.TemperatureLimit )
+        return self._get_register_value(AX12.TemperatureLimit)
     
-    def _set_temperature_limit( self, value ):
+    def _set_temperature_limit(self, value):
         """setter"""        
-        self.set_register_value( AX12.TemperatureLimit, value )
+        self.set_register_value(AX12.TemperatureLimit, value)
 
-    temperature_limit = property( _get_temperature_limit, 
-                                  _set_temperature_limit )
+    temperature_limit = property(_get_temperature_limit, 
+                                  _set_temperature_limit)
 
-    def _get_max_torque( self ):
+    def _get_max_torque(self):
         """getter"""        
         return self._get_register_value(AX12.MaxTorque)
     
-    def _set_max_torque( self, value ):
+    def _set_max_torque(self, value):
         """setter"""        
-        self.set_register_value( AX12.MaxTorque, value )
+        self.set_register_value(AX12.MaxTorque, value)
 
-    max_torque = property( _get_max_torque, _set_max_torque )
+    max_torque = property(_get_max_torque, _set_max_torque)
 
-    def _get_high_voltage_limit( self ):
+    def _get_high_voltage_limit(self):
         """getter"""        
         return self._get_register_value(AX12.HighVoltageLimit)/10.0
     
-    def _set_high_voltage_limit( self, value ):
+    def _set_high_voltage_limit(self, value):
         """setter"""        
         adj_value = int(round(value* 10.0))
-        self.set_register_value(AX12.HighVoltageLimit, adj_value ) 
+        self.set_register_value(AX12.HighVoltageLimit, adj_value) 
 
-    high_voltage_limit = property( _get_high_voltage_limit, 
-                                   _set_high_voltage_limit )
+    high_voltage_limit = property(_get_high_voltage_limit, 
+                                   _set_high_voltage_limit)
 
-    def _get_low_voltage_limit( self ):
+    def _get_low_voltage_limit(self):
         """getter"""        
         return self._get_register_value(AX12.LowVoltageLimit)/10.0
     
-    def _set_low_voltage_limit( self, value ):
+    def _set_low_voltage_limit(self, value):
         """setter"""        
         adj_value = int(round(value * 10.0))
-        self.set_register_value(AX12.LowVoltageLimit, adj_value )
+        self.set_register_value(AX12.LowVoltageLimit, adj_value)
 
-    low_voltage_limit = property( _get_low_voltage_limit, 
-                                  _set_low_voltage_limit )
+    low_voltage_limit = property(_get_low_voltage_limit, 
+                                  _set_low_voltage_limit)
 
-    def _get_model_number( self ):
+    def _get_model_number(self):
         """getter"""        
         return self._get_register_value(AX12.ModelNumber)
 
-    # property( _get_X, _set_X )
+    model_number = property(_get_model_number)
 
-    model_number = property( _get_model_number )
-
-    def _get_moving( self ):
+    def _get_moving(self):
         """getter"""                
         is_moving = (self._get_register_value(AX12.Moving) != 0)
         return self.changed or is_moving
 
-    moving = property( _get_moving )
+    moving = property(_get_moving)
 
-    def _get_punch( self ):
+    def _get_punch(self):
         """getter"""        
         return self._get_register_value(AX12.Punch)
     
-    def _set_punch( self, value ):
+    def _set_punch(self, value):
         """setter"""        
-        self.set_register_value( AX12.Punch, value)
+        self.set_register_value(AX12.Punch, value)
 
-    punch = property(_get_punch, _set_punch )
+    punch = property(_get_punch, _set_punch)
 
-    def _get_registered_instruction( self ):
+    def _get_registered_instruction(self):
         """getter"""        
         reg_inst = AX12.RegisteredInstruction
-        result = self._dyn_net.read_register( self._id, reg_inst ) 
+        result = self._dyn_net.read_register(self._id, reg_inst) 
         return result != 0
     
-    def _set_registered_instruction( self, value ):
+    def _set_registered_instruction(self, value):
         """setter"""        
         self.set_register_value(AX12.RegisteredInstruction, 
-                                1 if value else 0 )
+                                1 if value else 0)
     
     registered_instruction = property(_get_registered_instruction, 
-                                      _set_registered_instruction )
+                                      _set_registered_instruction)
 
-    def _get_return_delay( self ):
+    def _get_return_delay(self):
         """getter"""        
         return self._get_register_value(AX12.ReturnDelay) * 2
     
-    def _set_return_delay( self, value ):
+    def _set_return_delay(self, value):
         """setter"""        
         self.set_register_value(AX12.ReturnDelay, value / 2)
     
-    return_delay = property( _get_return_delay, _set_return_delay )
+    return_delay = property(_get_return_delay, _set_return_delay)
 
-    def _get_status_return_level( self ):
+    def _get_status_return_level(self):
         """getter"""        
         return self._get_register_value(AX12.StatusReturnLevel)
     
-    def _set_status_return_level(self, value ):
+    def _set_status_return_level(self, value):
         """setter"""        
         self.set_register_value(AX12.StatusReturnLevel, value)
     
-    status_return_level = property( _get_status_return_level, 
-                                    _set_status_return_level )
+    status_return_level = property(_get_status_return_level, 
+                                    _set_status_return_level)
 
-    def _get_torque_limit( self ):
+    def _get_torque_limit(self):
         """getter"""        
         return self._get_register_value(AX12.TorqueLimit)
 
-    def _set_torque_limit( self, value ):
+    def _set_torque_limit(self, value):
         """setter"""
         self.set_register_value(AX12.TorqueLimit, value)
 
-    torque_limit = property( _get_torque_limit, _set_torque_limit )
+    torque_limit = property(_get_torque_limit, _set_torque_limit)
     
 
     
