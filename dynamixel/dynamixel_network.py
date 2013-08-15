@@ -29,6 +29,7 @@ import dynamixel
 from defs import DEVICE
 
 AX12 = DEVICE['AX12']
+AXS1 = DEVICE['AXS1']
 
 class DynamixelInterface(object):
     """ Interface to Dynamixel CM-5 """
@@ -61,23 +62,9 @@ class DynamixelInterface(object):
         return text
 
     @staticmethod
-    def register_length(reg):
-        """ Returns the register length"""
-        if reg in [AX12.ModelNumber, 
-                   AX12.CWAngleLimit, AX12.CCWAngleLimit,
-                   AX12.MaxTorque, AX12.DownCalibration,
-                   AX12.UpCalibration, AX12.GoalPosition,
-                   AX12.MovingSpeed, AX12.TorqueLimit,
-                   AX12.CurrentPosition, AX12.CurrentSpeed,
-                   AX12.CurrentLoad, AX12.Punch]:
-            return 2
-        else:
-            return 1
-    @staticmethod
-    def register_reserved( addr ):
+    def register_reserved(addr):
         """ Test to see if a register is reserved """
         return addr in [0xA,0x13]
-
     
     def enter_toss_mode(self):
         """ Try to put the CM-5 into Toss Mode 
@@ -185,7 +172,7 @@ class DynamixelInterface(object):
 
         retry = True
         # read packet is only ever called immediately following a write 
-        # instruction (sent packet ) so we can use this opportunity to 
+        # instruction (sent packet) so we can use this opportunity to 
         # time the response from dynamixel 
         start_time = time.time()
 
@@ -247,9 +234,10 @@ class DynamixelInterface(object):
         checksum = ord(self._stream.read_byte())
         # let anyone listing know about any errors reported in the packet
         # use the InErrorHandler flag to avoid recursion from the 
-        # user's handler
+        # user's 
         if error_status != 0 and not self._in_error_handler:
             self._in_error_handler = True
+            print ident, self.error_text(error_status)
             self.dynamixel_error(self, (ident, error_status))
             self._in_error_handler = False
         return (ident, data)
@@ -294,7 +282,7 @@ class DynamixelInterface(object):
         if params == None:
             params = []
         if not isinstance(params, list):
-            raise Exception( "Params must be a list")
+            raise Exception("Params must be a list")
         cmd.append(0xFF)
         cmd.append(0xFF)
         cmd.append(ident)
@@ -338,6 +326,7 @@ class DynamixelInterface(object):
         Note:
         Some logical registers are one byte long and some are two.
         The count is for the number of bytes, not the number of registers.
+        This can also be used to read many registers at once.
         """
         
         return_packet = None
@@ -355,7 +344,7 @@ class DynamixelInterface(object):
                 self._stream.flush()
         return return_packet
 
-    def read_register(self, ident, register):
+    def read_register(self, ident, register, register_length):
         """Read the value of one logical register
         
         ident - the id of the Dynamixel to read
@@ -366,59 +355,59 @@ class DynamixelInterface(object):
         Note:
         this takes into account the byte length of the logical 
         register"""
-        data = self._read_data(ident, register,
-                                DynamixelInterface.register_length(register))
+        data = self._read_data(ident, register, register_length)
         if len(data) == 1:
             return data[0]
         return (data[1] << 8) + data[0]
 
-    def read_registers(self, ident, first_register, last_register):
+    def read_registers(self, ident, registers):
 
         """ Read the values of multiple logical registers
 
         ident - the id of the dynamixel
-        first_register - first logical register to read/address
-        last_register - the last logical register to read/address
+        registers - a list of tuples describing registers
+                    e.g. (RegisterName, RegisterAddress, RegisterLength)
         
         returns:
         a list of register values
 
-        Note:
-        this function takes into account the byte length of the 
-        logical register
         """
-        # this function was cleaned up for clarity
-        
-        register_length = DynamixelInterface.register_length(last_register)
         # calc number of bytes as delta based on addresses
+        last_register = registers[-1][1]
+        last_register_length = registers[-1][2]
+        first_register = registers[0][1]
+        print last_register
+        print last_register_length
+        print first_register
+        quit()
         byte_count = last_register + register_length - first_register
        
         # read data from servo
         data = self._read_data(ident, first_register, byte_count)
-        if len( data ) != byte_count:
-            raise Exception( "Data received (%d) shorter than requested data (%d)" % (len(data), byte_count))
+        if len(data) != byte_count:
+            raise Exception("Data received (%d) shorter than requested data (%d)" % (len(data), byte_count))
         # resulting values
         result = []
 
         regs = AX12.values()
         regs.sort()
         # index of first and last register
-        first = regs.index( first_register )
-        last = regs.index( last_register )
+        first = regs.index(first_register)
+        last = regs.index(last_register)
         
         # offset to read from
         offset = 0
-        for i in xrange( first, last + 1 ):
-            reg = regs[ i ]
+        for i in xrange(first, last + 1):
+            reg = regs[i]
             # calc the length; note this skips reserved registers
-            length = DynamixelInterface.register_length( reg )
+            length = DynamixelInterface.register_length(reg)
             # calc offset
             offset  = reg - first_register
             # reconstruct the value
             if length == 1:
-                result.append(data[ offset ])
+                result.append(data[offset])
             else:
-                result.append((data[ offset + 1] << 8) + \
+                result.append((data[offset + 1] << 8) + \
                                    data[offset])
         return result
 
@@ -432,7 +421,7 @@ class DynamixelInterface(object):
                    until the action  command is received
                    """
         if not isinstance(params, list):
-            raise Exception( "Params must be a list")
+            raise Exception("Params must be a list")
         cmd = []
         cmd.append(start_address)
         cmd = cmd + params
@@ -445,21 +434,22 @@ class DynamixelInterface(object):
         if not deferred:
             self.await_packet(ident, 0)
 
-    def write_register(self, ident, register, value, deferred):
+    def write_register(self, ident, register, register_length, value, deferred):
         """Write data to one logical register
         
         ident - dynamixel to write to
         register - the register to write to
+        register_length - [1,2] How many register addresses the value uses
         value - the integer value to write
         deferred - if true the dynamixel will store the request until the action 
                    command is received
                    """
-        if not isinstance( value, int):
-            raise ValueError( "Expected value to by an integer")
-        if DynamixelInterface.register_length(register) == 1:
-            self.write_data(ident, register, [ value ], deferred)
+        if not isinstance(value, int):
+            raise ValueError("Expected value to by an integer")
+        if register_length == 1:
+            self.write_data(ident, register, [value], deferred)
         else:
-            values = [ value & 0xFF, (value >> 8) & 0xFF ]
+            values = [value & 0xFF, (value >> 8) & 0xFF]
             self.write_data(ident, register, values, deferred)
 
     def action(self):
@@ -484,10 +474,10 @@ class DynamixelInterface(object):
         registers on each of many different Dynaixels with different values 
         at the same time.
 
-    The length of the 'parms' data will determine the number of sequential 
+        The length of the 'parms' data will determine the number of sequential 
         registers being written to.
 
-    For each Dynamixel the 'parms' data must include the id followed 
+        For each Dynamixel the 'parms' data must include the id followed 
         by the register data.
         """
         if len(params) % number_of_dynamixels != 0:
@@ -499,7 +489,6 @@ class DynamixelInterface(object):
         cmd = cmd + params
         self.write_instruction(DynamixelInterface.BROADCAST_ID,
                                  defs.INSTRUCTION.SyncWrite, cmd)
-
 
     def scan_ids(self, start_id, end_id):
         """Determine which ids are present
@@ -547,7 +536,7 @@ class DynamixelNetwork (DynamixelInterface):
         present on the network
         """
         if ident in self._dynamixel_map:
-            return self._dynamixel_map[ ident ]
+            return self._dynamixel_map[ident]
         else:
             return None
 
@@ -576,8 +565,7 @@ class DynamixelNetwork (DynamixelInterface):
         self._dynamixel_map = {}
         ids = self.scan_ids(start_id, end_id)
         for ident in ids:
-            self._dynamixel_map[ ident ] = dynamixel.Dynamixel(ident, self)
-
+            self._dynamixel_map[ident] = dynamixel.Dynamixel(ident, self)
 
     def _get_stopped(self):
         """Get if the dynamixels are stopped"""
@@ -623,18 +611,21 @@ class DynamixelNetwork (DynamixelInterface):
         if count != 0:
             self.sync_write(AX12.GoalPosition, count, data)
 
-
-    def broadcast_register(self, reg, value):
+    def broadcast_register(self, register, register_length, value):
         """Write the value of one logical register to all Dynamixels.
-        reg - The logical register to write.
+        register - The logical register to write.
+        register_length - The length in bytes of that register
         value - The integer value to write.
         
         Updates the cache value of the register for all Dynamixels.
         """
         for (ident, servo) in self._dynamixel_map.items():
-            servo[ reg ] = value
-        self.write_register(DynamixelInterface.BROADCAST_ID, reg,
-                             value, False)
+            servo[register] = value
+        self.write_register(DynamixelInterface.BROADCAST_ID,
+                            register,
+                            register_length,
+                            value,
+                            False)
 
     def dynamixel_id_change(self, servo, new_id):
         """ Prepare for a pending change in the Id of a dynamixel
@@ -643,5 +634,5 @@ class DynamixelNetwork (DynamixelInterface):
         """
         if new_id in self._dynamixel_map:
             raise ValueError("Dynamixel Id %d already in use" % (new_id))
-        del self._dynamixel_map[ servo.id ]
-        self._dynamixel_map[ new_id ] = servo
+        del self._dynamixel_map[servo.id]
+        self._dynamixel_map[new_id] = servo
