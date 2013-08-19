@@ -25,7 +25,7 @@ class Enumeration( object ):
     """ An Enumeration Class """
     def __init__( self, enums ):
         """ Default Constructor
-        mapping -- (key, value[, description) tuple key must be a string 
+        mapping -- (key, value [, description]) tuple key must be a string 
                    should start with a capital letter"""
         self._values = {}
         self._descriptions = {}
@@ -98,8 +98,6 @@ class Enumeration( object ):
         # if value is specified lookup the associated key
         if value != None:
             key = self.key( value )
-        # find the key
-        for key in self._descriptions:
             return self._descriptions[ key ]
         raise KeyError( "Cannot find associated description" )
     def keys( self ):
