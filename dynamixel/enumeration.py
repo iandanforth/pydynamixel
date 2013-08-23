@@ -25,8 +25,10 @@ class Enumeration( object ):
     """ An Enumeration Class """
     def __init__( self, enums ):
         """ Default Constructor
-        mapping -- (key, value [, description]) tuple key must be a string 
-                   should start with a capital letter"""
+        mapping -- (key, value [, {description}]) tuple
+                key - String should start with a capital letter
+                value - Int
+                description - A dict"""
         self._values = {}
         self._descriptions = {}
         values = set()

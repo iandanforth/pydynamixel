@@ -1,11 +1,17 @@
 import os
 import dynamixel
 import time
-import random
 import sys
 import subprocess
 import optparse
 import yaml
+
+from itertools import count
+
+from dynamixel.defs import DEVICE
+
+AX12 = DEVICE['AX12']
+AXS1 = DEVICE['AXS1']
 
 """
 EXAMPLE
@@ -37,12 +43,14 @@ def main(settings):
     #   Use 254 as the value for continual play and then 0 to turn it off.
     sensor.buzzer_time = 10
     
+
     # Play a note (0-41)
     print 'Playing a note ...'
     sensor.buzzer_index = 19
 
     time.sleep(2)
 
+    # Play one of the short sound sequences the S1 knows
     print "Playing a tune ..."
     sensor.buzzer_time = 255
     sensor.buzzer_index = 1
@@ -58,14 +66,12 @@ def main(settings):
     
     print "Left IR \tCenter IR\tRight IR\tTemperature\tVoltage"
 
-    counter = 0
-    while True:
-        counter += 1
-        if counter % 10 == 0:
+    for i in count(1):
+        if i % 10 == 0:
             print "CLAP TWICE TO EXIT"
         if sensor.sound_detected_count >= 2:
             sys.exit(0)
-        # Get our sensor values and time elapsed
+        # Get our sensor values
         lir = sensor.left_ir_sensor_value
         cir = sensor.center_ir_sensor_value
         rir = sensor.right_ir_sensor_value

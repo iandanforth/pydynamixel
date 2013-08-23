@@ -1,13 +1,19 @@
-* 1.1.0 (In Development)
+* 1.1.0
     * NOTE: This point release contains significant and possibly breaking
       changes. The main feature is the addition of support for the Dynamixel
       AX-S1 sensor module. To enable this support some significant changes were
       needed, see below:
     * Adds AX-S1 support
-    * A new DEVICES name replaces AX12 in defs and also contains AXS1
+    * A new sensor-example.py script is available from github source
+    * The example.py script has been revamped further.
+    * A new DEVICES name replaces AX12 in defs.py and also contains AXS1
     * Methods for finding register lengths for a given module exist in their
       classes as opposed to on the network class.
     * Register lengths must now be passed into network requests.
+      See read_register() and read_registers() in DynamixelInterface
+    * Register lengths are now part of descriptions of registers in defs.py
+    * Descriptions in defs.py are now dicts to support the above and further
+      extensions.
     * PEP8 Cleanup
 * 1.0.3
     * Fixes a bug in example.py on linux

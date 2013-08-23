@@ -58,7 +58,7 @@ class DynamixelInterface(object):
         text = []
         for key, value, description in defs.ERROR_STATUS.items():
             if (error_type & value) != 0:
-                text.append(description)
+                text.append(description['textDesc'])
         return text
 
     @staticmethod
@@ -179,7 +179,7 @@ class DynamixelInterface(object):
         # set an invalid id for error return cases
         ident = 0xFF
         ## 
-        ## Status packet returned from dynamixel serve
+        ## Status packet returned from dynamixel module
         ## 0     1     2     3     4     5     5 + data-length
         ## 0xFF  0xFF  id    len   err   data  checksum
 
@@ -350,10 +350,7 @@ class DynamixelInterface(object):
         reg - logical register to read
         
         Returns the integer value of the logical register
-
-        Note:
-        this takes into account the byte length of the logical 
-        register"""
+        """
         data = self._read_data(ident, register, register_length)
         if len(data) == 1:
             return data[0]
@@ -364,23 +361,20 @@ class DynamixelInterface(object):
         """ Read the values of multiple logical registers
 
         ident - the id of the dynamixel
-        registers - a list of tuples describing registers
-                    e.g. (RegisterName, RegisterAddress, RegisterLength)
+        registers - A list of tuples sorted by register address. Example:
+                    [(RegAddress, RegLength), (RegAddress2, RegLength2),]
         
         returns:
         a list of register values
 
         """
+        # index of first and last register
+        first_register = registers[0][0]
+        last_register, last_register_length = registers[-1]
+        
         # calc number of bytes as delta based on addresses
-        last_register = registers[-1][1]
-        last_register_length = registers[-1][2]
-        first_register = registers[0][1]
-        print last_register
-        print last_register_length
-        print first_register
-        quit()
-        byte_count = last_register + register_length - first_register
-       
+        byte_count = last_register + last_register_length - first_register
+
         # read data from servo
         data = self._read_data(ident, first_register, byte_count)
         if len(data) != byte_count:
@@ -388,22 +382,15 @@ class DynamixelInterface(object):
         # resulting values
         result = []
 
-        regs = AX12.values()
-        regs.sort()
-        # index of first and last register
-        first = regs.index(first_register)
-        last = regs.index(last_register)
-        
         # offset to read from
         offset = 0
-        for i in xrange(first, last + 1):
-            reg = regs[i]
+        for register in registers:
             # calc the length; note this skips reserved registers
-            length = DynamixelInterface.register_length(reg)
+            regAddress, regLength = register
             # calc offset
-            offset  = reg - first_register
+            offset  = regAddress - first_register
             # reconstruct the value
-            if length == 1:
+            if regLength == 1:
                 result.append(data[offset])
             else:
                 result.append((data[offset + 1] << 8) + \

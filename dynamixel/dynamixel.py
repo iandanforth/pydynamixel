@@ -25,8 +25,7 @@ import defs
 import time
 import dynamixel_network
 import re
-
-from collections import namedtuple
+import operator
 
 from defs import DEVICE
 
@@ -53,10 +52,19 @@ class SensorModule(object):
         # This allows introspection by dir()
         for register in self.registers:
             # Split the Register Name
-            words = [a.lower() for a in re.split(r'([A-Z][a-z]*)', register) if a]
-            prop = "_".join(words)
+            prop = self._transformName(register)
             AXS1PropNames[prop] = register
             self.__dict__[prop] = property()
+    
+    def _transformName(self, register):
+        '''
+        Returns a register name formated for use as a property
+        '''
+        
+        words = [a.lower() for a in re.split(r'([A-Z][a-z]*)', register) if a]
+        prop = "_".join(words)
+        
+        return prop
             
     def __getattribute__(self, name):
         
@@ -146,10 +154,11 @@ class SensorModule(object):
         """
         Returns if the logical register is 1 or 2 bytes in length
         """
-        if register in [AXS1.ModelNumber, AXS1.SoundDetectedTime]:
-            return 2
-        else:
-            return 1
+        
+        # Get this value from the module enum
+        desc = AXS1.description(value = register)
+        
+        return desc['registerLen']
     
     def set_register_value(self, register, value):
         """Set a register value and record in the cache, if applicable.
@@ -184,10 +193,29 @@ class SensorModule(object):
                                      register_length,
                                      value, False)
         self[register] = value
+    
+    def read_all(self):
+        """ Read all register values into the cache """
         
+        registers = []
+        # Create tuples of (RegisterAddress, RegisterLength)
+        for i in sorted(AXS1.values()):
+            description = AXS1.description(value = i)
+            regLen = description['registerLen']
+            registers.append((i, regLen))
+        
+        # Get all relevant values
+        values = self._dyn_net.read_registers(self._id, registers)
+        
+        # Put those into the cache
+        for i in range(len(values)):
+            addr = registers[i][0]
+            val = values[i]
+            self[addr] = val
+            
     def _get_current_voltage(self):
-        """getter"""        
-        volts = self._dyn_net.read_register(self._id, AXS1.CurrentVoltage) 
+        """getter"""
+        volts = self._get_register_value(AXS1.CurrentVoltage) 
         return volts / 10.0
 
 
@@ -249,14 +277,20 @@ class Dynamixel (object):
         reg - register to read
         
         return  the register value"""
+        register_length = self.register_length(register)
+        
         if register in [AX12.GoalPosition, AX12.MovingSpeed]:
             return self[register]
         if self._no_cache(register):
-            return self._dyn_net.read_register(self._id, register)
+            return self._dyn_net.read_register(self._id,
+                                               register,
+                                               register_length)
         else:
             value = self[register]
             if value == -1:
-                return self._dyn_net.read_register(self._id, register)
+                return self._dyn_net.read_register(self._id,
+                                                   register,
+                                                   register_length)
             else:
                 return value
 
@@ -301,32 +335,33 @@ class Dynamixel (object):
         self[register] = value
 
     def register_length(self, register):
-        """ Returns the register length"""
-        if register in [AX12.ModelNumber, 
-                        AX12.CWAngleLimit, AX12.CCWAngleLimit,
-                        AX12.MaxTorque, AX12.DownCalibration,
-                        AX12.UpCalibration, AX12.GoalPosition,
-                        AX12.MovingSpeed, AX12.TorqueLimit,
-                        AX12.CurrentPosition, AX12.CurrentSpeed,
-                        AX12.CurrentLoad, AX12.Punch]:
-            return 2
-        else:
-            return 1
+        """
+        Returns if the logical register is 1 or 2 bytes in length
+        """
+        
+        # Get this value from the module enum
+        desc = AX12.description(value = register)
+        
+        return desc['registerLen']
 
     def read_all(self):
         """ Read all register values into the cache """
-        Register = namedtuple('Register', ['name', 'address', 'length'])
         
-        # Add in register lengths
-        regs = [Register(name, AX12[name], self.register_length(AX12[name])) for
-                name in AX12]
+        registers = []
+        # Create tuples of (RegisterAddress, RegisterLength)
+        for i in sorted(AX12.values()):
+            description = AX12.description(value = i)
+            regLen = description['registerLen']
+            registers.append((i, regLen))
         
-        regs = sorted(regs, key=lambda reg: reg.address)
+        # Get all relevant values
+        values = self._dyn_net.read_registers(self._id, registers)
         
-        values = self._dyn_net.read_registers(self._id, regs)
-        
-        for i, reg in enumerate(regs):
-            self[reg] = values[i]
+        # Put those into the cache
+        for i in range(len(values)):
+            addr = registers[i][0]
+            val = values[i]
+            self[addr] = val
 
     def reset(self, ident):
         
@@ -497,8 +532,7 @@ class Dynamixel (object):
 
     def _get_current_load(self):
         """getter"""        
-        current_load = AX12.CurrentLoad
-        val = self._dyn_net.read_register(self._id, current_load)
+        val = self._get_register_value(AX12.CurrentLoad)
         if (val & 0x400) != 0:
             return -(val & 0x3FF)
         return val
@@ -513,8 +547,7 @@ class Dynamixel (object):
 
     def _get_current_speed(self):
         """getter"""
-        val =  self._dyn_net.read_register(self._id, 
-                                           AX12.CurrentSpeed)
+        val =  self._get_register_value(AX12.CurrentSpeed)
         if (val & 0x400) != 0:
             return -(val & 0x3FF)
         return val
@@ -523,15 +556,13 @@ class Dynamixel (object):
 
     def _get_current_temperature(self):
         """getter"""        
-        return self._dyn_net.read_register(self._id, 
-                                             AX12.CurrentTemperature)
+        return self._get_register_value(AX12.CurrentTemperature)
 
     current_temperature = property(_get_current_temperature)
 
     def _get_current_voltage(self):
         """getter"""        
-        volts = self._dyn_net.read_register(self._id, 
-                                              AX12.CurrentVoltage) 
+        volts = self._get_register_value(AX12.CurrentVoltage) 
         return volts / 10.0
 
     current_voltage = property(_get_current_voltage)
@@ -564,7 +595,12 @@ class Dynamixel (object):
         if value == self._id:
             return
         self._dyn_net.dynamixel_id_change(self, value)
-        self._dyn_net.write_register(self._id, AX12.Id, value, False)
+        registerLength = self.register_length(AX12.Id)
+        self._dyn_net.write_register(self._id,
+                                     AX12.Id,
+                                     registerLength,
+                                     value,
+                                     False)
         self._id = value
 
     id = property(_get_id, _set_id)
@@ -655,8 +691,7 @@ class Dynamixel (object):
 
     def _get_registered_instruction(self):
         """getter"""        
-        reg_inst = AX12.RegisteredInstruction
-        result = self._dyn_net.read_register(self._id, reg_inst) 
+        result = self._get_register_value(AX12.RegisteredInstruction) 
         return result != 0
     
     def _set_registered_instruction(self, value):

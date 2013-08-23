@@ -17,7 +17,7 @@ Pi Robot Project at http://www.pirobot.org
 """
 Dynamixel AX-12+ Module
 """
-__version__ =  '1.0.3'
+__version__ =  '1.1.0'
 
 from dynamixel import Dynamixel, SensorModule
 from dynamixel_network import DynamixelNetwork
