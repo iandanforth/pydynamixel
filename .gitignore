@@ -4,3 +4,6 @@ build/
 dist/
 *.egg-info
 .DS_Store
+#Coverage files
+.coverage
+htmlcov/
