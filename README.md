@@ -1,5 +1,7 @@
 # pydynamixel
 
+[![Build Status](https://travis-ci.org/iandanforth/pydynamixel.png?branch=tests)](https://travis-ci.org/iandanforth/pydynamixel)
+
 This is a Python version of the ForestMoon Dynamixel library originally written
 in C# by Scott Ferguson.
 
