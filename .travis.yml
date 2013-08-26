@@ -4,7 +4,7 @@ python:
 # command to install dependencies
 install: "pip install -r requirements.txt --use-mirrors"
 # command to run tests
-script: "py.test --cov . --cov-report html"
+script: "py.test --cov tests/ --cov-report html"
 # Branch whitelist to build
 branches:
   only:

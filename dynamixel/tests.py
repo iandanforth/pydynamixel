@@ -22,13 +22,14 @@ Dynamixel unit test module
 import unittest
 
 import dynamixel
+import dynamixel_network
+import event_handler
+import stream
+import defs
 
-from dynamixel import dynamixel_network
-from dynamixel import event_handler
-from dynamixel import stream
-from dynamixel import defs
+from defs import DEVICE
 
-AX12 = defs.DEVICE['AX12']
+AX12 = DEVICE['AX12']
 
 class MockStream( stream.Stream ):
     """ Mock Stream implementation """
@@ -124,6 +125,7 @@ class EventHandlerTest(unittest.TestCase):
         self.sender = None
         self.sender2 = None
         
+        
     def test_add( self ):
         """ Test a single add and call"""
         self.handler = event_handler.EventHandler()
@@ -185,7 +187,6 @@ class DynamixelInterfaceTest(unittest.TestCase):
     def setUp( self ):      
         """ Reset the interface """
         self.reset()
-        
     def reset( self ):
         """ Reset the interface """
         self.has_errors = False
@@ -270,7 +271,7 @@ class DynamixelInterfaceTest(unittest.TestCase):
         self.reset()   
         # verify read data
         istream.append( make_packet( 1, 0, [0x20]))
-        result = iface.read_register( 1, 0x2b, 1)
+        result = iface.read_register( 1, 0x2b)
         self.assertEqual( istream.obuffer, ''.join((map(chr,[0xff,0xff,0x1,0x4,0x2,0x2b,0x1,0xcc]))))
         self.assertEqual( result, 0x20)       
 
@@ -283,9 +284,7 @@ class DynamixelInterfaceTest(unittest.TestCase):
         istream.append( make_packet( 1, 0, [0x20]))
         # dummy packet full range of eeprom
         istream.append( make_packet( 1, 0, range(0,50) ))
-        registers = [(val, desc['registerLen']) for _, val, desc in AX12.items()]
-        registers = sorted(registers)
-        result = iface.read_registers( 1, registers)
+        result = iface.read_registers( 1, AX12.ModelNumber, AX12.Punch)
         # assert only the number of registers are returned
         self.assertEqual( len( result ), len(AX12.values()) )
         # TODO possibly add test for values of registers in future
@@ -300,7 +299,6 @@ class DynamixelInterfaceTest(unittest.TestCase):
         # verify write as per Spec
         iface.write_data( dynamixel_network.DynamixelInterface.BROADCAST_ID, 0x3,[0x1], False )
         self.assertEqual( istream.obuffer, ''.join((map(chr,[0xff,0xff,0xfe,0x4,0x3,0x3,0x1,0xf6]))))
-        
     def test_write_register( self ):
         istream = MockStream()
         iface = dynamixel_network.DynamixelInterface( istream )
@@ -309,7 +307,7 @@ class DynamixelInterfaceTest(unittest.TestCase):
         self.reset()   
         
         # verify write as per variant of spec
-        iface.write_register( 0x1, 0x3, 1, 0x1, True )
+        iface.write_register( 0x1, 0x3,0x1, True )
         self.assertEqual( istream.obuffer, ''.join((map(chr,[0xff,0xff,0x1,0x4,0x4,0x3,0x1,0xf2]))))
                 
     def test_action( self ):
@@ -372,8 +370,8 @@ class DynamixelNetwork(unittest.TestCase):
         # get by id
         dyn = iface[1]
         # assert initial read registers are ok
-        self.assertEqual( dyn.id, 1 )
-        self.assertEqual( dyn.goal_position, -1 )
+        self.assertEqual( dyn.moving_speed, 1027 )
+        self.assertEqual( dyn.goal_position, 513 )
         self.assertFalse(self.has_errors )
         
     def test_reset(self):
@@ -436,6 +434,8 @@ class DynamixelNetwork(unittest.TestCase):
         istream.append( make_packet(0x01,0x00,[0x20,0x00]))
         value = dyn.current_position
         self.assertEqual( value, 0x20) 
+
+
                         
     def error_handler(self, sender, (ident, error_status)):
         """ Error handler hook """

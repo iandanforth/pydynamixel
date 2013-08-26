@@ -25,7 +25,6 @@ class Enumeration( object ):
     """ An Enumeration Class """
     def __init__( self, enums ):
         """ Default Constructor
-        enums - A list of 3 element tuples
         mapping -- (key, value [, {description}]) tuple
                 key - String should start with a capital letter
                 value - Int
@@ -102,8 +101,6 @@ class Enumeration( object ):
         if value != None:
             key = self.key( value )
             return self._descriptions[ key ]
-        if key != None:
-            return self._descriptions[ key]
         raise KeyError( "Cannot find associated description" )
     def keys( self ):
         """ Return the keys in the enumeration as a list of strings """
