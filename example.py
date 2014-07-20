@@ -7,11 +7,14 @@ import subprocess
 import optparse
 import yaml
 
-"""
-EXAMPLE
- 
-Move all attached servos randomly every 2 seconds and read back the position
-they end up in.
+""" 
+This script will discover available USB ports to which the USB2Dynamixel may
+be attached. It will also help you discover the list of servos that are in the
+network. Once that has been done these values will be stored in  a local
+settings.yaml file.
+
+You will then be shown all of the found servo ids, and be asked if you want to 
+set them all to the home position (512).
 """
 
 def main(settings):
@@ -41,25 +44,25 @@ def main(settings):
     else:
       print "...Done"
     
-    for actuator in myActuators:
-        actuator.moving_speed = 50
-        actuator.synchronized = True
-        actuator.torque_enable = True
-        actuator.torque_limit = 800
-        actuator.max_torque = 800
-    
-    # Randomly vary servo position within a small range
-    print "Servo \tPosition"
-    while True:
-        for actuator in myActuators:
-            actuator.goal_position = random.randrange(450, 600)
+    # Prompt the user to move servos.
+    answer = raw_input("Would you like to move all the servos to the home position?"
+                   "\nWARNING: If servos are obstructed this could damage them "
+                   "\nor things in their path. [y/N] ")
+    if answer in ['y', 'Y', 'yes', 'Yes', 'YES']:
+
+        # Set up the servos
+        for actuator in myActuators: 
+            actuator.moving_speed = 50 
+            actuator.synchronized = True 
+            actuator.torque_enable = True
+            actuator.torque_limit = 800 
+            actuator.max_torque = 800
+            actuator.goal_position = 512
+
+        # Send all the commands to the servos.
         net.synchronize()
-        for actuator in myActuators:
-            actuator.read_all()
-            time.sleep(0.01)
-        for actuator in myActuators:
-            print actuator._id, "\t", actuator.current_position
-        time.sleep(2)
+
+        print("Congratulations! Read the code to find out how that happened!")
 
 def validateInput(userInput, rangeMin, rangeMax):
     '''
