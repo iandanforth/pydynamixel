@@ -1,7 +1,5 @@
 import os
 import dynamixel
-import time
-import random
 import sys
 import subprocess
 import optparse
@@ -18,27 +16,21 @@ set them all to the home position (512).
 """
 
 def main(settings):
-
-    portName = settings['port']
-    baudRate = settings['baudRate']
-    highestServoId = settings['highestServoId']
-
+    
     # Establish a serial connection to the dynamixel network.
     # This usually requires a USB2Dynamixel
-    serial = dynamixel.SerialStream(port=portName, baudrate=baudRate, timeout=1)
+    serial = dynamixel.SerialStream(port=settings['port'],
+                                    baudrate=settings['baudRate'],
+                                    timeout=1)
+    # Instantiate our network object
     net = dynamixel.DynamixelNetwork(serial)
+
+    # Populate our network with dynamixel objects
+    for servoId in settings['servoIds']:
+        newDynamixel = dynamixel.Dynamixel(servoId, net)
+        net._dynamixel_map[servoId] = newDynamixel
     
-    # Ping the range of servos that are attached
-    print "Scanning for Dynamixels..."
-    net.scan(1, highestServoId)
-    
-    myActuators = []
-    
-    for dyn in net.get_dynamixels():
-        print dyn.id
-        myActuators.append(net[dyn.id])
-    
-    if not myActuators:
+    if not net.get_dynamixels():
       print 'No Dynamixels Found!'
       sys.exit(0)
     else:
@@ -51,9 +43,8 @@ def main(settings):
     if answer in ['y', 'Y', 'yes', 'Yes', 'YES']:
 
         # Set up the servos
-        for actuator in myActuators: 
-            actuator.moving_speed = 50 
-            actuator.synchronized = True 
+        for actuator in net.get_dynamixels():
+            actuator.moving_speed = 50
             actuator.torque_enable = True
             actuator.torque_limit = 800 
             actuator.max_torque = 800
@@ -144,7 +135,33 @@ if __name__ == '__main__':
             highestServoId = validateInput(hsiTest, 1, 255)
         
         settings['highestServoId'] = highestServoId
+
+
+        highestServoId = settings['highestServoId']
+
+        # Establish a serial connection to the dynamixel network.
+        # This usually requires a USB2Dynamixel
+        serial = dynamixel.SerialStream(port=settings['port'],
+                                        baudrate=settings['baudRate'],
+                                        timeout=1)
+        # Instantiate our network object
+        net = dynamixel.DynamixelNetwork(serial)
         
+        # Ping the range of servos that are attached
+        print "Scanning for Dynamixels..."
+        net.scan(1, highestServoId)
+
+        settings['servoIds'] = []
+        print "Found the following Dynamixels IDs: "
+        for dyn in net.get_dynamixels():
+            print dyn.id
+            settings['servoIds'].append(dyn.id)
+
+        # Make sure we actually found servos
+        if not settings['servoIds']:
+          print 'No Dynamixels Found!'
+          sys.exit(0)
+
         # Save the output settings to a yaml file
         with open(settingsFile, 'w') as fh:
             yaml.dump(settings, fh)
