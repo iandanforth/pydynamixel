@@ -490,7 +490,7 @@ class DynamixelInterface(object):
         throws ValueError on arguments out of range
         """
         if end_id > 253 or end_id < 0:
-            raise ValueError("end_id must be 0 to 233")
+            raise ValueError("end_id must be 0 to 253")
         if start_id > end_id or start_id < 0:
             raise ValueError("start_id must be 0 to end_id")
         ids = []
